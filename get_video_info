@@ -1,115 +1,100 @@
-from pytube import YouTube
-from google.colab import files
+# Install required packages
+!pip install pytube --upgrade
+!pip install yt-dlp
+
+import yt_dlp
 import os
-import pandas as pd
 import time
-from IPython.display import clear_output
 
-def get_video_info(url):
-    """Get video info."""
+def download_video(url):
     try:
-        yt = YouTube(url)  # Fixed variable name from 'video' to 'yt'
-        return {
-            'title': yt.title,
-            'length': f"{yt.length // 60}: {yt.length % 60:02d}",
-            'views': yt.views,
-            'url': url,
-            'status': 'pending',
-        }
-    except Exception as e:  # Fixed exception handling
-        return {
-            'title': 'Error',
-            'length': '0:00',
-            'views': 0,
-            'url': url,
-            'status': f'Error: {str(e)}'
+        # Configure yt-dlp options
+        ydl_opts = {
+            'format': 'best',  # Download best quality
+            'outtmpl': '%(title)s.%(ext)s',  # Output template
+            'quiet': False,  # Show download progress
+            'no_warnings': False,
+            'progress': True
         }
 
-def display_queue(videos_df):
-    """Display the current download queue."""
-    clear_output(wait=True)
-    print("=== Download Queue ===")
-    print(videos_df[['title', 'length', 'status']].to_string(index=False))
-    print("Total videos:", len(videos_df))
+        # Create yt-dlp object with the options
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Get video info first
+            info = ydl.extract_info(url, download=False)
+            print(f"\nVideo Title: {info['title']}")
+            print(f"Duration: {info['duration']} seconds")
+            print(f"Quality: {info['formats'][-1]['height']}p")
 
-def download_multiple_videos():
+            # Confirm download
+            confirm = input("\nDo you want to download this video? (y/n): ")
+            if confirm.lower() == 'y':
+                print("\nDownloading...")
+                ydl.download([url])
+                print(f"\nDownload completed: {info['title']}")
+                return True
+            else:
+                print("Download cancelled.")
+                return False
+
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return False
+
+def main():
     videos = []
-    videos_df = pd.DataFrame()
 
     while True:
-        print("YouTube Batch Downloader")
-        print("1. Add to queue")
+        print("\n=== YouTube Batch Downloader ===")
+        print("1. Add video to queue")
         print("2. Show queue")
         print("3. Start downloading")
         print("4. Clear queue")
-        print("5. Back to main menu")
-        choice = input("Enter your choice: ")
+        print("5. Exit")
+
+        choice = input("\nEnter your choice (1-5): ")
 
         if choice == '1':
-            url = input("Enter video URL (or type 'done' to finish): ")
-            if url.lower() != "done":
-                video_info = get_video_info(url)
-                videos.append(video_info)
-                videos_df = pd.DataFrame(videos)
-                display_queue(videos_df)
+            url = input("Enter YouTube video URL: ")
+            videos.append(url)
+            print("Video added to queue!")
+
         elif choice == '2':
             if len(videos) == 0:
-                print("Queue is empty.")
+                print("Queue is empty!")
             else:
-                display_queue(videos_df)
+                print("\nCurrent Queue:")
+                for i, url in enumerate(videos, 1):
+                    print(f"{i}. {url}")
+
         elif choice == '3':
             if len(videos) == 0:
-                print("Queue is empty.")
+                print("Queue is empty! Add some videos first.")
                 continue
 
-            print("Starting batch downloading...")
-            for index, row in videos_df.iterrows():
-                try:
-                    if row['status'].startswith('Error'):
-                        continue
+            print("\nStarting downloads...")
 
-                    yt = YouTube(row['url'])  # Fixed variable name from 'video' to 'row'
-                    print(f"\nDownloading: {row['title']}")
-                    stream = yt.streams.filter(progressive=True).get_highest_resolution()
-                    video_path = stream.download()
-                    files.download(video_path)
-                    os.remove(video_path)  # Remove the file after downloading
-                    videos_df.at[index, 'status'] = 'downloaded'
-                    display_queue(videos_df)
-                    time.sleep(2)  # Added sleep to avoid overwhelming the server
-                except Exception as e:
-                    videos_df.at[index, 'status'] = f"Error: {str(e)}"
-                    display_queue(videos_df)
-            print("Batch download completed.")
+            for url in videos[:]:  # Create a copy of the list to iterate
+                success = download_video(url)
+                if success:
+                    videos.remove(url)  # Remove successfully downloaded videos
+                time.sleep(1)  # Small delay between downloads
+
+            print("\nAll downloads completed!")
+
         elif choice == '4':
             videos.clear()
-            videos_df = pd.DataFrame()
-            print("Queue cleared.")
+            print("Queue cleared!")
+
         elif choice == '5':
-            print("Back to main menu.")
-            break
-        else:
-            print("Invalid choice, please try again.")
-
-def main():
-    while True:
-        print("YouTube Downloader")
-        print("1. Download single video")
-        print("2. Download multiple videos")
-        print("3. Exit")
-        choice = input("Enter your choice: ")
-
-        if choice == '1':
-            print("Single video download is not implemented yet.")
-            # You can implement single video download functionality here
-        elif choice == '2':
-            download_multiple_videos()
-        elif choice == '3':
             print("Goodbye!")
             break
+
         else:
             print("Invalid choice. Please try again.")
 
-main()
-
-
+# Run the main function
+print("Starting YouTube Downloader...")
+try:
+    main()
+except Exception as e:
+    print(f"An unexpected error occurred: {str(e)}")
