@@ -1,0 +1,115 @@
+from pytube import YouTube
+from google.colab import files
+import os
+import pandas as pd
+import time
+from IPython.display import clear_output
+
+def get_video_info(url):
+    """Get video info."""
+    try:
+        yt = YouTube(url)  # Fixed variable name from 'video' to 'yt'
+        return {
+            'title': yt.title,
+            'length': f"{yt.length // 60}: {yt.length % 60:02d}",
+            'views': yt.views,
+            'url': url,
+            'status': 'pending',
+        }
+    except Exception as e:  # Fixed exception handling
+        return {
+            'title': 'Error',
+            'length': '0:00',
+            'views': 0,
+            'url': url,
+            'status': f'Error: {str(e)}'
+        }
+
+def display_queue(videos_df):
+    """Display the current download queue."""
+    clear_output(wait=True)
+    print("=== Download Queue ===")
+    print(videos_df[['title', 'length', 'status']].to_string(index=False))
+    print("Total videos:", len(videos_df))
+
+def download_multiple_videos():
+    videos = []
+    videos_df = pd.DataFrame()
+
+    while True:
+        print("YouTube Batch Downloader")
+        print("1. Add to queue")
+        print("2. Show queue")
+        print("3. Start downloading")
+        print("4. Clear queue")
+        print("5. Back to main menu")
+        choice = input("Enter your choice: ")
+
+        if choice == '1':
+            url = input("Enter video URL (or type 'done' to finish): ")
+            if url.lower() != "done":
+                video_info = get_video_info(url)
+                videos.append(video_info)
+                videos_df = pd.DataFrame(videos)
+                display_queue(videos_df)
+        elif choice == '2':
+            if len(videos) == 0:
+                print("Queue is empty.")
+            else:
+                display_queue(videos_df)
+        elif choice == '3':
+            if len(videos) == 0:
+                print("Queue is empty.")
+                continue
+
+            print("Starting batch downloading...")
+            for index, row in videos_df.iterrows():
+                try:
+                    if row['status'].startswith('Error'):
+                        continue
+
+                    yt = YouTube(row['url'])  # Fixed variable name from 'video' to 'row'
+                    print(f"\nDownloading: {row['title']}")
+                    stream = yt.streams.filter(progressive=True).get_highest_resolution()
+                    video_path = stream.download()
+                    files.download(video_path)
+                    os.remove(video_path)  # Remove the file after downloading
+                    videos_df.at[index, 'status'] = 'downloaded'
+                    display_queue(videos_df)
+                    time.sleep(2)  # Added sleep to avoid overwhelming the server
+                except Exception as e:
+                    videos_df.at[index, 'status'] = f"Error: {str(e)}"
+                    display_queue(videos_df)
+            print("Batch download completed.")
+        elif choice == '4':
+            videos.clear()
+            videos_df = pd.DataFrame()
+            print("Queue cleared.")
+        elif choice == '5':
+            print("Back to main menu.")
+            break
+        else:
+            print("Invalid choice, please try again.")
+
+def main():
+    while True:
+        print("YouTube Downloader")
+        print("1. Download single video")
+        print("2. Download multiple videos")
+        print("3. Exit")
+        choice = input("Enter your choice: ")
+
+        if choice == '1':
+            print("Single video download is not implemented yet.")
+            # You can implement single video download functionality here
+        elif choice == '2':
+            download_multiple_videos()
+        elif choice == '3':
+            print("Goodbye!")
+            break
+        else:
+            print("Invalid choice. Please try again.")
+
+main()
+
+
